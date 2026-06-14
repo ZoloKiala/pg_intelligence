@@ -1,0 +1,8 @@
+.git
+.gitignore
+*.exe
+pgis
+selections.json
+db.sqlite3
+README.md
+*.png
