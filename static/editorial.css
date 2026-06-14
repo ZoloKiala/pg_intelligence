@@ -452,6 +452,37 @@ body {
   .ed-legend-note { display: none; }
 }
 
+/* Map zoom controls */
+.ed-map-zoom {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ed-zoom-btn {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  border: 1px solid var(--ed-rule);
+  background: rgba(255, 255, 255, 0.92);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  color: var(--ink);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(16, 28, 25, 0.18);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.ed-zoom-btn:hover { background: #fff; color: var(--accent); }
+.ed-zoom-btn:active { transform: translateY(1px); }
+
 /* Hotspot list panel */
 .ed-list .top-list { max-height: 360px; overflow-y: auto; overscroll-behavior: contain; }
 .ed-subhead {

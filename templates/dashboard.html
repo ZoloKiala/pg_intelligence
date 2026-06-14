@@ -55,7 +55,7 @@
   </script>
 
   <link rel="stylesheet" href="/static/app.css?v=20260525-collapsible-filters">
-  <link rel="stylesheet" href="/static/editorial.css?v=20260614-editorial-16">
+  <link rel="stylesheet" href="/static/editorial.css?v=20260614-editorial-18">
 </head>
 <body>
   <div id="app-loader" class="app-loader" role="status" aria-live="polite" aria-label="Loading dashboard data">
@@ -77,7 +77,7 @@
   <main id="dashboard-layout">
 
     <!-- ===== TOP NAV + FILTERS ===== -->
-    <form method="get" class="filters ed-topform" id="filters-form">
+    <form method="get" action="/" class="filters ed-topform" id="filters-form">
       <header class="ed-nav">
         <div class="ed-brand">
           <img class="ed-brand-logo" src="https://branding.iwmi.org/wp-content/uploads/2020/02/three-e1584035789729.jpg" alt="IWMI logo" loading="lazy">
@@ -250,6 +250,10 @@
               </ul>
               <span class="ed-legend-note">Size only — bigger circle = stronger planting candidate (any colour).</span>
             </div>
+          </div>
+          <div class="ed-map-zoom" role="group" aria-label="Map zoom">
+            <button type="button" class="ed-zoom-btn" id="map-zoom-in" aria-label="Zoom in" title="Zoom in">+</button>
+            <button type="button" class="ed-zoom-btn" id="map-zoom-out" aria-label="Zoom out" title="Zoom out">&minus;</button>
           </div>
         </div>
       </section>
@@ -437,7 +441,8 @@
       // After a filter Apply (full reload with query params, no #hash), start at
       // the top. Deep-link hashes (#sec-map etc.) are left to scroll normally.
       if (!window.location.hash) {
-        var toTop = function () {
+        // NOTE: must NOT be named toTop — that's the back-to-top button above.
+        var jumpTop = function () {
           // Force an instant jump (override scroll-behavior: smooth) so applying
           // filters lands at the top rather than animating or keeping the offset.
           var html = document.documentElement;
@@ -446,12 +451,12 @@
           window.scrollTo(0, 0);
           html.style.scrollBehavior = prev;
         };
-        toTop();
-        window.addEventListener("DOMContentLoaded", toTop);
+        jumpTop();
+        window.addEventListener("DOMContentLoaded", jumpTop);
         window.addEventListener("load", function () {
-          toTop();
-          window.setTimeout(toTop, 80);
-          window.setTimeout(toTop, 350);
+          jumpTop();
+          window.setTimeout(jumpTop, 80);
+          window.setTimeout(jumpTop, 350);
         });
       }
 
@@ -583,6 +588,25 @@
           mo.observe(el, { childList: true, characterData: true, subtree: true });
         });
       }
+
+      // Map zoom buttons → step the scattermap zoom via Plotly.relayout.
+      var geoEl = document.getElementById("geo-chart");
+      var mapZoom = function (delta) {
+        if (!geoEl || !geoEl._fullLayout || !geoEl._fullLayout.map) return;
+        var sub = geoEl._fullLayout.map._subplot;
+        if (sub && sub.map && typeof sub.map.getZoom === "function") {
+          sub.map.setZoom(Math.max(1, Math.min(20, sub.map.getZoom() + delta)));
+          return;
+        }
+        var z = geoEl._fullLayout.map.zoom;
+        if (window.Plotly && typeof z === "number") {
+          window.Plotly.relayout(geoEl, { "map.zoom": Math.max(1, Math.min(20, z + delta)) });
+        }
+      };
+      var zoomIn = document.getElementById("map-zoom-in");
+      var zoomOut = document.getElementById("map-zoom-out");
+      if (zoomIn) zoomIn.addEventListener("click", function () { mapZoom(1); });
+      if (zoomOut) zoomOut.addEventListener("click", function () { mapZoom(-1); });
     })();
   </script>
 </body>
