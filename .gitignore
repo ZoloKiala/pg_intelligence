@@ -1,0 +1,6 @@
+# Build output
+/pgis
+/pgis.exe
+
+# Runtime state
+/selections.json

@@ -1,0 +1,589 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Participatory Hotspot Dashboard</title>
+  <script>
+    (function () {
+      try {
+        if (window.sessionStorage.getItem("pgis_skip_loader_once") === "1") {
+          document.documentElement.classList.add("skip-loader");
+          window.sessionStorage.removeItem("pgis_skip_loader_once");
+        }
+      } catch (e) {}
+      // Don't restore the old scroll position on reload — applying filters
+      // should land you back at the top (hero + key stats).
+      if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+    })();
+  </script>
+  <!-- Open connections to the heavy third-party origins early (faster load). -->
+  <link rel="preconnect" href="https://cdn.plot.ly">
+  <link rel="preconnect" href="https://esm.run" crossorigin>
+  <link rel="preconnect" href="https://unpkg.com" crossorigin>
+  <link rel="dns-prefetch" href="https://branding.iwmi.org">
+
+  <script type="module" src="https://unpkg.com/@dotlottie/player-component@2.3.0/dist/dotlottie-player.mjs"></script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Roboto+Flex:opsz,wght@8..144,400;8..144,500;8..144,700&family=Space+Grotesk:wght@500;700&display=swap"
+  >
+  <link
+    rel="stylesheet"
+    href="https://fonts.googleapis.com/icon?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0"
+  >
+
+  <script type="importmap">
+  {
+    "imports": {
+      "@material/web/": "https://esm.run/@material/web/",
+      "lit": "https://esm.run/lit",
+      "lit/": "https://esm.run/lit/",
+      "tslib": "https://esm.run/tslib"
+    }
+  }
+  </script>
+  <script type="module">
+    import '@material/web/all.js';
+    import { styles as typescaleStyles } from '@material/web/typography/md-typescale-styles.js';
+    if (typescaleStyles && typescaleStyles.styleSheet) {
+      document.adoptedStyleSheets = [...document.adoptedStyleSheets, typescaleStyles.styleSheet];
+    }
+  </script>
+
+  <link rel="stylesheet" href="/static/app.css?v=20260525-collapsible-filters">
+  <link rel="stylesheet" href="/static/editorial.css?v=20260614-editorial-16">
+</head>
+<body>
+  <div id="app-loader" class="app-loader" role="status" aria-live="polite" aria-label="Loading dashboard data">
+    <div class="app-loader-card">
+      <div class="loader-brand" aria-hidden="true">
+        <img class="loader-logo-main" src="https://branding.iwmi.org/wp-content/uploads/2020/02/three-e1584035789729.jpg" alt="" loading="lazy">
+        <span class="loader-side-text">Soil and Water Accelerator</span>
+      </div>
+      <div class="loader-mark" aria-hidden="true">
+        <dotlottie-player class="loader-lottie" src="/static/yBSVhxzCOv.lottie" background="transparent" speed="1" loop autoplay></dotlottie-player>
+      </div>
+      <p class="loader-title">Preparing Participatory Hotspot Dashboard</p>
+      <p class="loader-subtitle">Loading charts, summaries, and location intelligence...</p>
+    </div>
+  </div>
+
+  <div class="ed-progress" id="ed-progress" aria-hidden="true"></div>
+
+  <main id="dashboard-layout">
+
+    <!-- ===== TOP NAV + FILTERS ===== -->
+    <form method="get" class="filters ed-topform" id="filters-form">
+      <header class="ed-nav">
+        <div class="ed-brand">
+          <img class="ed-brand-logo" src="https://branding.iwmi.org/wp-content/uploads/2020/02/three-e1584035789729.jpg" alt="IWMI logo" loading="lazy">
+          <span class="ed-brand-name">Hotspot Brief</span>
+        </div>
+        <nav class="ed-nav-links" aria-label="Section navigation">
+          <a href="#sec-map">Map</a>
+          <a href="#sec-indicators">Indicators</a>
+          <a href="#sec-severity">Severity</a>
+          <a href="#sec-participants">Participants</a>
+          <a href="#sec-table">Detail</a>
+        </nav>
+
+        <md-outlined-text-field
+          type="search" name="q" value="{{ .Current.Q }}"
+          label="Search" placeholder="flood, erosion, Salima..."
+          class="ed-search">
+          <md-icon slot="leading-icon">search</md-icon>
+        </md-outlined-text-field>
+
+        <details class="ed-filters" {{ if or .Current.Indicators .Current.Categories .Current.Severity }}open{{ end }}>
+          <summary class="ed-filter-btn">
+            <md-icon aria-hidden="true">tune</md-icon>
+            <span>Filters</span>
+            <md-icon class="chev" aria-hidden="true">expand_more</md-icon>
+          </summary>
+          <div class="ed-filter-panel">
+            <md-outlined-select name="country" id="country-select" label="Country">
+              <md-select-option value="" {{ if not .Current.Country }}selected{{ end }}><div slot="headline">All countries</div></md-select-option>
+              {{ range .Countries }}
+                <md-select-option value="{{ . }}" {{ if eq $.Current.Country . }}selected{{ end }}><div slot="headline">{{ . }}</div></md-select-option>
+              {{ end }}
+            </md-outlined-select>
+
+            <md-outlined-select name="district" id="district-select" label="District">
+              <md-select-option value="" {{ if not .Current.District }}selected{{ end }}><div slot="headline">All districts</div></md-select-option>
+              {{ range .DistrictOptions }}
+                <md-select-option value="{{ .Value }}" data-country="{{ .Country }}" {{ if eq $.Current.District .Value }}selected{{ end }}><div slot="headline">{{ .Value }}</div></md-select-option>
+              {{ end }}
+            </md-outlined-select>
+
+            <md-outlined-select name="severity" label="Severity">
+              <md-select-option value="" {{ if not .Current.Severity }}selected{{ end }}><div slot="headline">All severity</div></md-select-option>
+              <md-select-option value="1" {{ if eq .Current.Severity "1" }}selected{{ end }}><div slot="headline">1 &mdash; Low</div></md-select-option>
+              <md-select-option value="3" {{ if eq .Current.Severity "3" }}selected{{ end }}><div slot="headline">3 &mdash; Moderate</div></md-select-option>
+              <md-select-option value="5" {{ if eq .Current.Severity "5" }}selected{{ end }}><div slot="headline">5 &mdash; High</div></md-select-option>
+            </md-outlined-select>
+
+            <details class="more-filters" {{ if or .Current.Indicators .Current.Categories }}open{{ end }}>
+              <summary class="muted">Hotspot types &amp; participant groups</summary>
+              <fieldset class="m3-fieldset">
+                <legend>Environmental Hotspots</legend>
+                <md-outlined-text-field type="search" id="indicator-filter-search" label="Search hotspot types" placeholder="Type flood, erosion, dam..." class="field-full">
+                  <md-icon slot="leading-icon">search</md-icon>
+                </md-outlined-text-field>
+                <div class="selected-filter-chips" id="selected-filter-chips" aria-live="polite"></div>
+                {{ range .IndicatorOptionGroups }}
+                  <details class="indicator-group indicator-group--{{ .Key }}" data-indicator-group="{{ .Name }}">
+                    <summary class="muted">{{ .Name }}</summary>
+                    <label class="indicator-option indicator-option--all" data-indicator-group="{{ .Name }}">
+                      <md-checkbox touch-target="wrapper" data-indicator-group-toggle="{{ .Name }}"></md-checkbox>
+                      <span>All</span>
+                    </label>
+                    {{ $group := . }}
+                    {{ range .Items }}
+                      <label class="indicator-option" data-indicator-group="{{ $group.Name }}">
+                        <md-checkbox touch-target="wrapper" name="indicator" value="{{ . }}" {{ if has $.Current.Indicators . }}checked{{ end }}></md-checkbox>
+                        <span>{{ indicatorLabel . }}</span>
+                      </label>
+                    {{ end }}
+                  </details>
+                {{ end }}
+              </fieldset>
+              <fieldset class="m3-fieldset category-fieldset">
+                <legend>Category</legend>
+                <p class="field-helper">Select one or more participant groups. Leave empty for all.</p>
+                <div class="category-options">
+                  {{ range .Categories }}
+                    <label class="category-option">
+                      <md-checkbox touch-target="wrapper" name="category" value="{{ .Value }}" {{ if has $.Current.Categories .Value }}checked{{ end }}></md-checkbox>
+                      <span>{{ .Label }}</span>
+                    </label>
+                  {{ end }}
+                </div>
+              </fieldset>
+            </details>
+
+            <div class="filter-actions">
+              <md-filled-button type="submit" class="apply-btn" data-default="Apply filters" data-loading="Applying...">
+                <md-icon slot="icon" aria-hidden="true">tune</md-icon>
+                Apply filters
+              </md-filled-button>
+              <md-outlined-button href="/" data-skip-loader="1" class="reset-btn">
+                <md-icon slot="icon" aria-hidden="true">restart_alt</md-icon>
+                Reset
+              </md-outlined-button>
+            </div>
+          </div>
+        </details>
+      </header>
+    </form>
+
+    <!-- ===== THE BRIEF ===== -->
+    <article class="ed-article">
+      <header class="ed-hero">
+        <span class="ed-hero-kicker">Soil and Water Accelerator · Participatory mapping brief</span>
+        <h1 class="ed-title">Community hotspots — {{ if .Current.District }}{{ .Current.District }}{{ else if .Current.Country }}{{ .Current.Country }}{{ else }}Malawi &amp; Zambia{{ end }}</h1>
+        <p class="ed-subtitle">
+          Community-identified soil, water, land-use, and livelihood hotspots from participatory
+          mapping. Use the filters to focus the brief by district, hotspot type, participant group,
+          and severity.
+        </p>
+
+        <div class="ed-keystats">
+          <a class="ed-keystat" href="#sec-map" title="View these locations on the map">
+            <span class="stat-label">Loaded locations</span>
+            <strong class="stat-value" id="stat-total">{{ .FilteredCount }}</strong>
+            <span class="stat-meta">Current filtered dataset <span class="ed-keystat-go" aria-hidden="true">→ map</span></span>
+          </a>
+          <a class="ed-keystat" href="#sec-indicators" title="See the top hotspot indicators">
+            <span class="stat-label">Distinct hotspot types</span>
+            <strong class="stat-value" id="stat-indicators">Not available</strong>
+            <span class="stat-meta">Canonical indicators in view <span class="ed-keystat-go" aria-hidden="true">→ indicators</span></span>
+          </a>
+          <a class="ed-keystat" href="#sec-severity" title="See the severity breakdown">
+            <span class="stat-label">Average severity</span>
+            <strong class="stat-value" id="stat-severity">Not available</strong>
+            <span class="stat-meta">Across visible records <span class="ed-keystat-go" aria-hidden="true">→ severity</span></span>
+          </a>
+          <a class="ed-keystat" href="#sec-severity" title="See hotspot families">
+            <span class="stat-label">Dominant category</span>
+            <strong class="stat-value" id="stat-category">Not available</strong>
+            <span class="stat-meta">Most common family <span class="ed-keystat-go" aria-hidden="true">→ families</span></span>
+          </a>
+        </div>
+
+        <section class="focus-strip ed-focus">
+          <div>
+            <span class="focus-label">Chart focus</span>
+            <strong id="focus-indicator">All hotspots</strong>
+          </div>
+          <p id="focus-copy">Use the hotspot list or chart bars to focus the brief on a single indicator.</p>
+        </section>
+      </header>
+
+      <!-- 01 — Map -->
+      <section class="ed-section chart-card--map" id="sec-map">
+        <div class="ed-section-head">
+          <span class="ed-section-num">01</span>
+          <h2 class="ed-section-title">Spatial distribution</h2>
+          <span class="ed-section-hint">Colour = severity · size = afforestation priority</span>
+        </div>
+        <p class="ed-lead">Each point is a recorded hotspot. Its <strong>colour</strong> shows severity (green → red), and its <strong>size</strong> shows afforestation priority — bigger circles are stronger tree-planting candidates.</p>
+        <div class="ed-map-wrap">
+          <div id="geo-chart" class="ed-map-slot" aria-label="Spatial hotspot chart"></div>
+          <div class="ed-map-legend" aria-label="Map legend">
+            <div class="ed-legend-block">
+              <span class="ed-legend-head">Severity — colour</span>
+              <ul class="ed-legend-keys">
+                <li><span class="ed-dot ed-dot--m" style="--c:#86c5a3"></span>Low</li>
+                <li><span class="ed-dot ed-dot--m" style="--c:#efb366"></span>Moderate</li>
+                <li><span class="ed-dot ed-dot--m" style="--c:#d9485f"></span>High</li>
+              </ul>
+            </div>
+            <div class="ed-legend-block">
+              <span class="ed-legend-head">Afforestation priority — size</span>
+              <ul class="ed-legend-keys">
+                <li><span class="ed-dot ed-dot--s" style="--c:#2f6f57"></span>Lower</li>
+                <li><span class="ed-dot ed-dot--l" style="--c:#2f6f57"></span>Higher</li>
+              </ul>
+              <span class="ed-legend-note">Bigger circle = stronger planting candidate.</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 02 — Indicators -->
+      <section class="ed-section" id="sec-indicators">
+        <div class="ed-section-head">
+          <span class="ed-section-num">02</span>
+          <h2 class="ed-section-title">Top hotspot indicators</h2>
+          <span class="ed-section-hint">Click a bar or list item to focus</span>
+        </div>
+        <div class="ed-2col ed-2col--wide-left">
+          <div>
+            <div id="indicator-chart" class="chart-slot" aria-label="Top indicators chart"></div>
+          </div>
+          <div class="ed-list">
+            <p class="ed-subhead">
+              <span>Identified hotspots</span>
+              <md-text-button type="button" class="ghost-btn" id="clear-hotspot-focus">
+                <md-icon slot="icon" aria-hidden="true">filter_alt_off</md-icon>
+                Clear focus
+              </md-text-button>
+            </p>
+            <ul class="top-list">
+              {{ range .IndicatorCounts }}
+                <li class="top-indicator-row top-indicator-row--{{ .CategoryKey }}">
+                  <button type="button" class="hotspot-link hotspot-item" aria-pressed="false" data-indicator="{{ .Indicator }}">
+                    {{ indicatorLabel .Indicator }}
+                  </button>
+                  <strong>{{ .Count }}</strong>
+                </li>
+              {{ else }}
+                <li>No indicators found.</li>
+              {{ end }}
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- 03 — Severity & families -->
+      <section class="ed-section" id="sec-severity">
+        <div class="ed-section-head">
+          <span class="ed-section-num">03</span>
+          <h2 class="ed-section-title">Severity &amp; hotspot families</h2>
+          <span class="ed-section-hint">Concern level and grouping</span>
+        </div>
+        <div class="ed-2col">
+          <div>
+            <p class="ed-subhead"><span>Severity split</span></p>
+            <div id="severity-chart" class="chart-slot" aria-label="Severity chart"></div>
+          </div>
+          <div>
+            <p class="ed-subhead"><span>Hotspot families</span></p>
+            <div id="category-chart" class="chart-slot" aria-label="Category chart"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 04 — Participants -->
+      <section class="ed-section" id="sec-participants">
+        <div class="ed-section-head">
+          <span class="ed-section-num">04</span>
+          <h2 class="ed-section-title">Participant breakdown</h2>
+          <span class="ed-section-hint">Older / younger men and women</span>
+        </div>
+        <div class="category-stats-grid" id="category-stats-grid">
+          <div class="category-stat-empty">Loading participant breakdown...</div>
+        </div>
+      </section>
+
+      <!-- 05 — District coverage & afforestation -->
+      <section class="ed-section" id="sec-coverage">
+        <div class="ed-section-head">
+          <span class="ed-section-num">05</span>
+          <h2 class="ed-section-title">District coverage &amp; afforestation priority</h2>
+          <span class="ed-section-hint">Where planting cuts flood &amp; erosion risk</span>
+        </div>
+        <div class="ed-2col">
+          <div>
+            <p class="ed-subhead"><span>District coverage</span></p>
+            <div id="district-chart" class="chart-slot" aria-label="District coverage chart"></div>
+          </div>
+          <div>
+            <p class="ed-subhead"><span>Smart afforestation priority</span></p>
+            <p class="ed-note">
+              <strong>How to read this:</strong> districts are ranked by their tree-planting payoff —
+              the combined severity of nearby flood, erosion, forest-loss and water-stress hotspots.
+              A longer, darker bar = a stronger candidate for afforestation. It's a <em>relative</em>
+              score (higher is better), not a unit. Only districts in the current filter appear, so a
+              single-district view shows one bar — switch to <strong>All districts</strong> to compare.
+            </p>
+            <div id="afforestation-chart" class="chart-slot" aria-label="Afforestation priority ranking by district"></div>
+            <div class="aff-legend" aria-label="Afforestation priority colour scale">
+              <span>Lower priority</span>
+              <span class="aff-ramp"></span>
+              <span>Higher priority</span>
+            </div>
+            <div id="afforestation-benchmark" class="afforestation-benchmark">
+              <p class="afforestation-note">Loading afforestation priority...</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 06 — Community selections -->
+      <section class="ed-section" id="votes-card">
+        <div class="ed-section-head">
+          <span class="ed-section-num">06</span>
+          <h2 class="ed-section-title">Community selections</h2>
+          <span class="ed-section-hint">Votes from the submitted priority form</span>
+        </div>
+        <div id="votes-chart" class="chart-slot" aria-label="Community votes chart"></div>
+      </section>
+
+      <!-- 07 — Location detail -->
+      <section class="ed-section table-card" id="sec-table">
+        <div class="ed-section-head">
+          <span class="ed-section-num">07</span>
+          <h2 class="ed-section-title">Location detail</h2>
+          <input
+            type="search"
+            id="table-search"
+            class="ed-table-search"
+            placeholder="Filter rows…"
+            aria-label="Filter location rows"
+          >
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Label</th>
+                <th>District</th>
+                <th>Hotspot</th>
+                <th>Severity</th>
+                <th>Coordinates</th>
+              </tr>
+            </thead>
+            <tbody id="locations-table-body">
+              <tr><td colspan="5" class="table-empty">Loading locations...</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="table-pagination" id="locations-pagination" aria-label="Location detail pagination"></div>
+      </section>
+
+      <!-- 08 — About -->
+      <section class="ed-section about-data-card" id="sec-about" aria-labelledby="about-data-title">
+        <div class="ed-section-head">
+          <span class="ed-section-num">08</span>
+          <h2 class="ed-section-title" id="about-data-title">About this data</h2>
+        </div>
+        <p class="ed-lead">
+          This brief summarizes community-identified hotspot locations recorded during participatory
+          mapping activities in Malawi and Zambia districts. Participant group labels come from the
+          contributed source files, and severity scores describe the relative concern recorded for
+          each hotspot.
+        </p>
+        <p class="ed-lead">
+          The dataset was loaded from the project location records and may not include every community,
+          season, or local condition. Treat the results as planning evidence to review with communities
+          and technical teams before selecting interventions.
+        </p>
+      </section>
+    </article>
+
+    <button type="button" id="ed-to-top" class="ed-to-top" aria-label="Back to top" title="Back to top">
+      <md-icon aria-hidden="true">arrow_upward</md-icon>
+    </button>
+  </main>
+
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <script>
+    window.PGIS = {{ .PGISJSON }};
+  </script>
+  <script src="/static/app.js?v=20260614-severity-fill-3"></script>
+  <script>
+    // Scroll navigation: progress bar, scrollspy nav highlight, back-to-top.
+    (function () {
+      var doc = document.documentElement;
+      var bar = document.getElementById("ed-progress");
+      var toTop = document.getElementById("ed-to-top");
+      var nav = document.querySelector(".ed-nav");
+
+      // After a filter Apply (full reload with query params, no #hash), start at
+      // the top. Deep-link hashes (#sec-map etc.) are left to scroll normally.
+      if (!window.location.hash) {
+        var toTop = function () {
+          // Force an instant jump (override scroll-behavior: smooth) so applying
+          // filters lands at the top rather than animating or keeping the offset.
+          var html = document.documentElement;
+          var prev = html.style.scrollBehavior;
+          html.style.scrollBehavior = "auto";
+          window.scrollTo(0, 0);
+          html.style.scrollBehavior = prev;
+        };
+        toTop();
+        window.addEventListener("DOMContentLoaded", toTop);
+        window.addEventListener("load", function () {
+          toTop();
+          window.setTimeout(toTop, 80);
+          window.setTimeout(toTop, 350);
+        });
+      }
+
+      function onScroll() {
+        var scrolled = window.scrollY || doc.scrollTop;
+        var max = doc.scrollHeight - doc.clientHeight;
+        var pct = max > 0 ? scrolled / max : 0;
+        if (bar) bar.style.transform = "scaleX(" + pct + ")";
+        if (toTop) toTop.classList.toggle("is-visible", scrolled > 400);
+        if (nav) nav.classList.toggle("is-stuck", scrolled > 4);
+      }
+      window.addEventListener("scroll", onScroll, { passive: true });
+      window.addEventListener("resize", onScroll, { passive: true });
+      onScroll();
+
+      if (toTop) {
+        toTop.addEventListener("click", function () {
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        });
+      }
+
+      // Scrollspy: highlight the nav link for the section in view.
+      var links = Array.prototype.slice.call(document.querySelectorAll(".ed-nav-links a"));
+      var byId = {};
+      var sections = [];
+      links.forEach(function (a) {
+        var id = (a.getAttribute("href") || "").slice(1);
+        var el = id && document.getElementById(id);
+        if (el) { byId[id] = a; sections.push(el); }
+      });
+      if ("IntersectionObserver" in window && sections.length) {
+        var obs = new IntersectionObserver(function (entries) {
+          entries.forEach(function (e) {
+            if (e.isIntersecting) {
+              links.forEach(function (a) { a.classList.remove("is-active"); });
+              var active = byId[e.target.id];
+              if (active) active.classList.add("is-active");
+            }
+          });
+        }, { rootMargin: "-30% 0px -60% 0px", threshold: 0 });
+        sections.forEach(function (s) { obs.observe(s); });
+      }
+
+      // Keep the district map filling its (stretched) column. Plotly's
+      // responsive:true only refits on window resize, not on flex/grid reflow,
+      // so observe the container and resize the plot when it changes size.
+      var districtChart = document.getElementById("district-chart");
+      if (window.ResizeObserver && districtChart) {
+        var ro = new ResizeObserver(function () {
+          if (window.Plotly && districtChart._fullLayout) {
+            try { window.Plotly.Plots.resize(districtChart); } catch (e) {}
+          }
+        });
+        ro.observe(districtChart);
+      }
+
+      // In-table quick filter: hide rows that don't match the query. Re-applies
+      // itself when app.js re-renders the table (focus / pagination changes).
+      var tableSearch = document.getElementById("table-search");
+      var tbody = document.getElementById("locations-table-body");
+      if (tableSearch && tbody) {
+        var applyTableFilter = function () {
+          var q = (tableSearch.value || "").trim().toLowerCase();
+          var rows = tbody.querySelectorAll("tr");
+          var anyVisible = false;
+          rows.forEach(function (tr) {
+            if (tr.querySelector(".table-empty") || tr.dataset.nomatch) return;
+            var match = !q || tr.textContent.toLowerCase().indexOf(q) !== -1;
+            tr.style.display = match ? "" : "none";
+            if (match) anyVisible = true;
+          });
+          var existing = tbody.querySelector("tr[data-nomatch]");
+          if (q && !anyVisible && !existing) {
+            var tr = document.createElement("tr");
+            tr.dataset.nomatch = "1";
+            tr.innerHTML = '<td colspan="5" class="table-row-nomatch">No rows match “' +
+              q.replace(/</g, "&lt;") + '”.</td>';
+            tbody.appendChild(tr);
+          } else if (existing && (anyVisible || !q)) {
+            existing.remove();
+          }
+        };
+        tableSearch.addEventListener("input", applyTableFilter);
+        var tableMo = new MutationObserver(function () { applyTableFilter(); });
+        tableMo.observe(tbody, { childList: true });
+      }
+
+      // Count-up animation for the numeric hero stats. Runs when app.js fills a
+      // value, ticking up from 0 quickly. Skips on reduced-motion and ignores
+      // its own intermediate writes so it never loops.
+      var reduceMotion = window.matchMedia &&
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (!reduceMotion) {
+        [
+          { id: "stat-total", decimals: 0 },
+          { id: "stat-indicators", decimals: 0 },
+          { id: "stat-severity", decimals: 1 },
+        ].forEach(function (spec) {
+          var el = document.getElementById(spec.id);
+          if (!el) return;
+          var shown = null;
+          var fmt = function (v) {
+            return spec.decimals ? v.toFixed(spec.decimals) : String(Math.round(v));
+          };
+          var run = function (target) {
+            var t0 = null;
+            var step = function (t) {
+              if (t0 === null) t0 = t;
+              var p = Math.min((t - t0) / 600, 1);
+              var eased = 1 - Math.pow(1 - p, 3); // easeOutCubic
+              el.dataset.counting = "1";
+              el.textContent = fmt(target * eased);
+              if (p < 1) {
+                requestAnimationFrame(step);
+              } else {
+                el.textContent = fmt(target);
+                delete el.dataset.counting;
+              }
+            };
+            requestAnimationFrame(step);
+          };
+          var mo = new MutationObserver(function () {
+            if (el.dataset.counting) return;
+            var num = parseFloat((el.textContent || "").replace(/,/g, "").trim());
+            if (!isFinite(num) || shown === num) return;
+            shown = num;
+            run(num);
+          });
+          mo.observe(el, { childList: true, characterData: true, subtree: true });
+        });
+      }
+    })();
+  </script>
+</body>
+</html>
