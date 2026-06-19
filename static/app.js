@@ -619,8 +619,13 @@
   }
 
   function getScopedRows() {
-    if (!state.activeIndicator) return state.rows;
-    return state.rows.filter((row) => row.indicatorKey === state.activeIndicator);
+    let rows = state.rows;
+    if (state.filterDistrict) {
+      const d = state.filterDistrict.trim().toLowerCase();
+      rows = rows.filter((row) => (row.district || "").trim().toLowerCase() === d);
+    }
+    if (!state.activeIndicator) return rows;
+    return rows.filter((row) => row.indicatorKey === state.activeIndicator);
   }
 
   function getActiveLocation(rows) {
@@ -1737,6 +1742,17 @@
         indicatorKey: normalizeIssueLabel(row.indicator),
         votes: Number(row.votes) || 0,
       }));
+
+      // Apply a district filter from the URL (?district=) — used when this app is
+      // embedded by the SLWM dashboard to scope to the selected community's district.
+      try {
+        const dParam = new URLSearchParams(window.location.search).get("district");
+        if (dParam) {
+          state.filterDistrict = dParam;
+          const ds = document.getElementById("district-select");
+          if (ds) ds.value = dParam;
+        }
+      } catch (e) {}
 
       renderDashboard();
       bindChartEvents();

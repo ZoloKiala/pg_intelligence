@@ -7,10 +7,9 @@
   <script>
     (function () {
       try {
-        if (window.sessionStorage.getItem("pgis_skip_loader_once") === "1") {
-          document.documentElement.classList.add("skip-loader");
-          window.sessionStorage.removeItem("pgis_skip_loader_once");
-        }
+        // Page loader removed for the SLWM embed — always skip the splash.
+        document.documentElement.classList.add("skip-loader");
+        window.sessionStorage.removeItem("pgis_skip_loader_once");
       } catch (e) {}
       // Don't restore the old scroll position on reload — applying filters
       // should land you back at the top (hero + key stats).
@@ -79,11 +78,7 @@
     <!-- ===== TOP NAV + FILTERS ===== -->
     <form method="get" action="/" class="filters ed-topform" id="filters-form">
       <header class="ed-nav">
-        <div class="ed-brand">
-          <img class="ed-brand-logo" src="https://branding.iwmi.org/wp-content/uploads/2020/02/three-e1584035789729.jpg" alt="IWMI logo" loading="lazy">
-          <span class="ed-brand-name">Hotspot Brief</span>
-        </div>
-        <nav class="ed-nav-links" aria-label="Section navigation">
+        <nav class="ed-nav-links" aria-label="Section navigation" style="margin-left:auto">
           <a href="#sec-map">Map</a>
           <a href="#sec-indicators">Indicators</a>
           <a href="#sec-severity">Severity</a>
